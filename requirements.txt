@@ -1,0 +1,15 @@
+langchain
+langgraph
+openai
+transformers
+accelerate
+datasets
+python-dotenv
+tqdm
+rich
+huggingface_hub
+bitsandbytes
+networkx
+matplotlib
+pandas
+scikit-learn
