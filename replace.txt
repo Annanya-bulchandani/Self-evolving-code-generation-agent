@@ -1,0 +1,2 @@
+# Replace any Groq key-like string with a placeholder
+regex:gsk_[A-Za-z0-9]+==>GROQ_API_KEY_REDACTED
