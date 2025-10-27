@@ -62,6 +62,8 @@
 #     main()
 ####################################################
 # main.py
+from dotenv import load_dotenv
+load_dotenv()
 from agents.generator import GeneratorAgent
 from agents.evaluator import EvaluatorAgent
 from agents.critic import CriticAgent
