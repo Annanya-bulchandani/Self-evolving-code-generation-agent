@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Self-Evolving Code Agent</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        /* Styles focused on presentation and responsiveness */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; /* Dark mode background */
+            color: #c9d1d9;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+        .code-editor {
+            font-family: 'Fira Code', 'Roboto Mono', monospace;
+            min-height: 400px;
+            white-space: pre-wrap;
+            tab-size: 4;
+            line-height: 1.5;
+            transition: all 0.3s ease-in-out;
+        }
+        /* Custom scrollbar style */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #21262d; }
+        ::-webkit-scrollbar-thumb { background: #484f58; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6e7681; }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="p-4 md:p-8 w-full max-w-7xl mx-auto">
+
+        <header class="mb-8 p-4 bg-[#161b22] rounded-xl shadow-2xl">
+            <h1 class="text-3xl font-extrabold text-[#58a6ff] tracking-tight">
+                Self-Evolving Code Agent 
+                <span class="text-base font-medium text-gray-400 block mt-1">
+                    LLM-Powered Code Refinement Loop
+                </span>
+            </h1>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <div class="lg:col-span-2">
+                
+                <div class="mb-6 p-4 bg-[#161b22] rounded-xl shadow-lg border border-gray-700">
+                    <h2 class="text-xl font-semibold mb-3 text-white">Define the Challenge</h2>
+                    
+                    <label for="problem-input" class="block text-sm font-medium mb-1 text-gray-400">Problem Description</label>
+                    <textarea id="problem-input" rows="2" class="w-full p-3 mb-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 focus:ring-[#58a6ff] focus:border-[#58a6ff] code-editor" placeholder="E.g., Write a Python function that checks if a number is prime."></textarea>
+                    
+                    <label for="requirements-input" class="block text-sm font-medium mb-1 text-gray-400">Specific Requirements</label>
+                    <textarea id="requirements-input" rows="1" class="w-full p-3 mb-4 bg-gray-800 border border-gray-700 rounded-lg text-gray-200 focus:ring-[#58a6ff] focus:border-[#58a6ff] code-editor" placeholder="E.g., Use a simple algorithm and handle edge cases."></textarea>
+                    
+                    <button onclick="startAgentCycle()" id="start-button" class="w-full py-3 px-4 bg-[#238636] hover:bg-[#2ea043] text-white font-bold rounded-xl shadow-md transition duration-200 flex items-center justify-center disabled:opacity-50">
+                        Start Agent Cycle
+                    </button>
+                    <p id="status-message" class="mt-3 text-center text-sm font-medium text-gray-400">Ready to start the code evolution.</p>
+                </div>
+
+                <div class="p-6 bg-[#161b22] rounded-xl shadow-lg border border-gray-700">
+                    <h2 class="text-xl font-semibold mb-4 text-white flex justify-between items-center">
+                        Current Code (Iteration <span id="iteration-display">0</span>)
+                        <span id="code-status" class="text-sm font-medium px-3 py-1 rounded-full bg-yellow-900 text-yellow-300">Awaiting Input</span>
+                    </h2>
+                    <pre id="code-output" class="code-editor p-4 bg-[#0d1117] border border-gray-700 rounded-lg overflow-auto text-green-300 text-sm">
+def is_prime(n):
+    # The actual code generated and refined by the agents will appear here.
+    pass
+                    </pre>
+                </div>
+            </div>
+
+            <div class="lg:col-span-1">
+                <div class="p-6 bg-[#161b22] rounded-xl shadow-lg border border-gray-700 h-full overflow-y-auto max-h-[700px]">
+                    <h2 class="text-xl font-semibold mb-6 text-white">Agent Timeline</h2>
+                    <div id="timeline-container" class="space-y-6">
+                        </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        // --- UI Element References and Global State ---
+        const startButton = document.getElementById('start-button');
+        const problemInput = document.getElementById('problem-input');
+        const requirementsInput = document.getElementById('requirements-input');
+        const statusMessage = document.getElementById('status-message');
+        const codeOutput = document.getElementById('code-output');
+        const iterationDisplay = document.getElementById('iteration-display');
+        const codeStatus = document.getElementById('code-status');
+        const timelineContainer = document.getElementById('timeline-container');
+        
+        let isRunning = false;
+        let currentIteration = 0;
+
+        // --- Core UI Management Functions ---
+
+        /** Simulates a delay for better visual experience (useful since actual API calls may return fast) */
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        /** Renders a single step into the timeline */
+        function renderTimelineEntry(entry) {
+            const successColor = entry.success ? 'bg-green-700 text-green-100' : 'bg-red-700 text-red-100';
+            const icon = entry.success ?
+                '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' :
+                '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+
+            const entryElement = document.createElement('div');
+            // Add transition classes for a smooth visual entry
+            entryElement.className = 'flex space-x-3 transition-all duration-500 ease-in-out opacity-0 translate-y-4';
+            entryElement.innerHTML = `
+                <div class="flex-shrink-0">
+                    <div class="h-8 w-8 rounded-full ${successColor} flex items-center justify-center ring-4 ring-[#161b22]">
+                        ${icon}
+                    </div>
+                </div>
+                <div class="flex-1 pb-4">
+                    <p class="text-sm text-gray-300">
+                        <span class="font-bold text-white">${entry.agent}</span> - ${entry.step}
+                    </p>
+                    <p class="text-xs mt-1 text-gray-400 whitespace-pre-wrap">${entry.log}</p>
+                    <span class="mt-2 inline-block text-xs px-2 py-0.5 rounded-md font-semibold text-gray-900 bg-[#58a6ff]">${entry.status}</span>
+                </div>
+            `;
+            timelineContainer.appendChild(entryElement);
+            
+            // Trigger animation
+            setTimeout(() => {
+                entryElement.classList.remove('opacity-0', 'translate-y-4');
+            }, 50);
+
+            // Scroll the container to show the latest entry
+            timelineContainer.parentElement.scrollTop = timelineContainer.parentElement.scrollHeight;
+        }
+
+        /** Updates the main code editor view and status badge styles */
+        function updateCodeDisplay(code, status, iteration) {
+            // Only update the code if a new code block is provided
+            if (code) {
+                codeOutput.textContent = code;
+            }
+            iterationDisplay.textContent = iteration;
+
+            let statusClass = 'bg-yellow-900 text-yellow-300';
+            if (status.includes('SUCCESS') || status.includes('Accepted')) {
+                statusClass = 'bg-green-800 text-green-300';
+            } else if (status.includes('Error') || status.includes('Failed') || status.includes('FATAL')) {
+                statusClass = 'bg-red-800 text-red-300';
+            } else if (status.includes('Required') || status.includes('Ready') || status.includes('OK')) {
+                 statusClass = 'bg-blue-800 text-blue-300';
+            }
+
+            codeStatus.className = `text-sm font-medium px-3 py-1 rounded-full ${statusClass}`;
+            codeStatus.textContent = status;
+        }
+
+        /** Runs a single step and handles UI updates with delays */
+        async function runSimulationStep(entry, stepIndex) {
+            // Determine iteration based on agent
+            if (entry.agent === 'Generator') {
+                currentIteration = 0;
+            } else if (entry.agent === 'Refiner') {
+                // Iteration increments *after* a refinement
+                currentIteration++; 
+            }
+
+            // Small dynamic delay based on the entry's specified delay
+            await delay(entry.delay || 1000);
+
+            renderTimelineEntry(entry);
+
+            // Update the code display if a new code block is provided
+            if (entry.code) {
+                updateCodeDisplay(entry.code, entry.status, currentIteration);
+            } else {
+                 // Update status for intermediate steps
+                 updateCodeDisplay(null, entry.status, currentIteration);
+            }
+        }
+
+        // --- Event Handler and API Caller (The only connection to the backend) ---
+
+        /** Starts the full agent cycle by calling the Flask API */
+        async function startAgentCycle() {
+            if (isRunning) return;
+            isRunning = true;
+            timelineContainer.innerHTML = '';
+            currentIteration = 0;
+            
+            const problemDescription = problemInput.value;
+            const requirements = requirementsInput.value;
+
+            // Lock button and show running state
+            startButton.disabled = true;
+            startButton.innerHTML = '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Running Agent Cycle...';
+
+            updateCodeDisplay(codeOutput.textContent, 'Initializing...', 0);
+
+            try {
+                statusMessage.textContent = 'Contacting Python backend to run agents... (Wait for LLM calls)';
+                
+                // --- API Call to Backend (Execution starts in app.py) ---
+                const response = await fetch('/api/run_agent', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ problem: problemDescription, requirements: requirements })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}. Check Flask console.`);
+                }
+
+                const data = await response.json();
+                
+                if (!data.success) {
+                    // Handle logical failure returned by the Python backend
+                    throw new Error(data.error || 'Backend failed to execute the workflow.');
+                }
+
+                const workflow = data.workflow;
+                
+                statusMessage.textContent = `Backend execution finished. Visualizing ${workflow.length} steps.`;
+
+                // Run the visualization sequentially
+                for (let i = 0; i < workflow.length; i++) {
+                    await runSimulationStep(workflow[i], i);
+                }
+                
+                // Final state update
+                statusMessage.textContent = '✅ Agent cycle complete. Check the final code and timeline!';
+                
+            } catch (error) {
+                statusMessage.textContent = `❌ Agent Cycle Failed: ${error.message}.`;
+                codeStatus.textContent = 'FATAL ERROR';
+                console.error("Agent Cycle Error:", error);
+            } finally {
+                isRunning = false;
+                startButton.disabled = false;
+                startButton.innerHTML = 'Start Agent Cycle';
+            }
+        }
+
+        // --- Initialization ---
+        function init() {
+            // Set default values
+            problemInput.value = "Write a Python function that checks if a number is prime.";
+            requirementsInput.value = "Use a simple algorithm and handle edge cases.";
+            startButton.disabled = false;
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
